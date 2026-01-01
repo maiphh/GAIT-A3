@@ -3,10 +3,12 @@ Main entry point with Pygame-based menu.
 """
 import pygame
 import sys
-from levels import get_all_levels, get_level
+from levels import get_all_levels, get_level, save_custom_level
 from trainer import Trainer, train_and_compare
 from gridworld import Gridworld
-from config import COLORS, TRAINING
+from config import COLORS, TRAINING, GRID_WIDTH, GRID_HEIGHT
+from creator import LevelCreator
+
 
 
 class Menu:
@@ -27,6 +29,8 @@ class Menu:
         self.selected_algorithm = 0
         self.algorithms = ['Q-Learning', 'SARSA']
         self.use_intrinsic = False
+        self.level_scroll_offset = 0
+        self.max_visible_levels = 6  # Max levels visible at once
     
     def draw_button(self, text, x, y, width, height, selected=False):
         """Draw a menu button."""
@@ -54,18 +58,62 @@ class Menu:
             subtitle = self.font_small.render("Classical Reinforcement Learning", True, COLORS['agent'])
             self.screen.blit(subtitle, (self.width // 2 - subtitle.get_width() // 2, 80))
             
-            # Level selection
+            # Level selection with scroll
             level_label = self.font_medium.render("Select Level:", True, COLORS['text'])
             self.screen.blit(level_label, (50, 130))
             
-            level_buttons = []
-            for i, level in enumerate(self.levels):
-                btn_text = f"L{level.level_id}: {level.name}"
-                btn = self.draw_button(btn_text, 50, 160 + i * 45, 500, 38, i == self.selected_level)
-                level_buttons.append((btn, i))
+            # Separate levels by type
+            default_levels = [(i, l) for i, l in enumerate(self.levels) if getattr(l, 'level_type', 'default') == 'default']
+            custom_levels = [(i, l) for i, l in enumerate(self.levels) if getattr(l, 'level_type', 'default') == 'custom']
             
-            # Algorithm selection
-            algo_y = 160 + len(self.levels) * 45 + 20
+            # Calculate scroll bounds
+            total_items = len(default_levels) + len(custom_levels) + 2  # +2 for section headers
+            max_scroll = max(0, total_items - self.max_visible_levels)
+            self.level_scroll_offset = max(0, min(self.level_scroll_offset, max_scroll))
+            
+            # Create scroll area
+            scroll_area_y = 160
+            scroll_area_height = self.max_visible_levels * 38
+            level_buttons = []
+            
+            # Draw scroll area background
+            scroll_bg = pygame.Rect(45, scroll_area_y - 5, 510, scroll_area_height + 10)
+            pygame.draw.rect(self.screen, (50, 54, 62), scroll_bg, border_radius=8)
+            
+            # Build list of items (headers + levels)
+            all_items = []
+            if default_levels:
+                all_items.append(('header', 'Default Levels'))
+                for idx, level in default_levels:
+                    all_items.append(('level', idx, level))
+            if custom_levels:
+                all_items.append(('header', 'Custom Levels'))
+                for idx, level in custom_levels:
+                    all_items.append(('level', idx, level))
+            
+            # Draw visible items
+            visible_items = all_items[self.level_scroll_offset:self.level_scroll_offset + self.max_visible_levels]
+            for slot_idx, item in enumerate(visible_items):
+                item_y = scroll_area_y + slot_idx * 38
+                if item[0] == 'header':
+                    header_text = self.font_small.render(f"── {item[1]} ──", True, COLORS['agent'])
+                    self.screen.blit(header_text, (50, item_y + 10))
+                else:
+                    _, idx, level = item
+                    btn_text = f"L{level.level_id}: {level.name}"
+                    btn = self.draw_button(btn_text, 50, item_y, 500, 34, idx == self.selected_level)
+                    level_buttons.append((btn, idx))
+            
+            # Draw scroll indicators if needed
+            if self.level_scroll_offset > 0:
+                up_arrow = self.font_medium.render("▲", True, COLORS['text'])
+                self.screen.blit(up_arrow, (530, scroll_area_y - 3))
+            if self.level_scroll_offset < max_scroll:
+                down_arrow = self.font_medium.render("▼", True, COLORS['text'])
+                self.screen.blit(down_arrow, (530, scroll_area_y + scroll_area_height - 25))
+            
+            # Algorithm selection - fixed position
+            algo_y = scroll_area_y + scroll_area_height + 20
             algo_label = self.font_medium.render("Algorithm:", True, COLORS['text'])
             self.screen.blit(algo_label, (50, algo_y))
             
@@ -88,7 +136,8 @@ class Menu:
             
             # Action buttons - Row 2
             action_y2 = action_y + 60
-            visual_train_btn = self.draw_button("Visualize Training", 50, action_y2, 510, 50)
+            visual_train_btn = self.draw_button("Visualize Training", 50, action_y2, 340, 50)
+            create_level_btn = self.draw_button("Create Level", 400, action_y2, 160, 50)
             
             # Info text
             info_y = action_y2 + 70
@@ -110,6 +159,10 @@ class Menu:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
+                elif event.type == pygame.MOUSEWHEEL:
+                    # Scroll level list
+                    self.level_scroll_offset -= event.y
+                    self.level_scroll_offset = max(0, min(self.level_scroll_offset, max_scroll))
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     pos = pygame.mouse.get_pos()
                     
@@ -138,6 +191,9 @@ class Menu:
                     
                     if visual_train_btn.collidepoint(pos):
                         self.run_visual_training()
+                    
+                    if create_level_btn.collidepoint(pos):
+                        self.run_create_level()
             
             self.clock.tick(30)
         
@@ -275,6 +331,28 @@ class Menu:
             stats.plot_training_curves(title=title, save_path=save_path)
         
         # Recreate menu display (pygame is still running)
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption("RL Gridworld - Classical Learning")
+        self.font_large = pygame.font.Font(None, 48)
+        self.font_medium = pygame.font.Font(None, 32)
+        self.font_small = pygame.font.Font(None, 24)
+    
+    def run_create_level(self):
+        """Open level creator to design a custom level."""
+        creator = LevelCreator()
+        result = creator.run()
+        
+        if result is not None and result != "continue":
+            # Level was saved, reload levels list
+            self.levels = get_all_levels()
+            # Select the newly created level
+            for i, level in enumerate(self.levels):
+                if level.level_id == result:
+                    self.selected_level = i
+                    break
+            print(f"Custom level created and added to menu!")
+        
+        # Recreate menu display
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("RL Gridworld - Classical Learning")
         self.font_large = pygame.font.Font(None, 48)
