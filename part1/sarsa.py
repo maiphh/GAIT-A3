@@ -4,13 +4,14 @@ On-policy temporal difference learning.
 """
 import random
 from collections import defaultdict
-from config import TRAINING, NUM_ACTIONS
+from config import TRAINING, NUM_ACTIONS, INTRINSIC_SCALE
+import math
 
 
 class SARSA:
     """SARSA agent with epsilon-greedy exploration."""
     
-    def __init__(self, alpha=None, gamma=None, epsilon_start=None, epsilon_end=None, episodes=None):
+    def __init__(self, alpha=None, gamma=None, epsilon_start=None, epsilon_end=None, episodes=None, use_intrinsic=False, scale=INTRINSIC_SCALE):
         self.alpha = alpha or TRAINING['alpha']
         self.gamma = gamma or TRAINING['gamma']
         self.epsilon_start = epsilon_start or TRAINING['epsilon_start']
@@ -19,6 +20,10 @@ class SARSA:
         
         self.q_table = defaultdict(lambda: [0.0] * NUM_ACTIONS)
         self.current_episode = 0
+
+        self.use_intrinsic = use_intrinsic
+        self.scale = scale
+        self.visit_counts = defaultdict(int)
     
     @property
     def epsilon(self):
@@ -36,6 +41,12 @@ class SARSA:
         return self.get_greedy_action(state)
     
     def update(self, state, action, reward, next_state, next_action, done):
+        if self.use_intrinsic:
+            return self.update_intrinsic(state, action, reward, next_state, next_action, done)
+        else:
+            return self.update_normal(state, action, reward, next_state, next_action, done)
+    
+    def update_normal(self, state, action, reward, next_state, next_action, done):
         """SARSA update: Q(s,a) ← Q(s,a) + α[r + γ Q(s',a') - Q(s,a)]"""
         current_q = self.q_table[state][action]
         
@@ -65,3 +76,21 @@ class SARSA:
             'epsilon': self.epsilon,
             'episode': self.current_episode
         }
+
+#---------Intrinsic Reward---------#
+    def reset_episode(self):
+        """Reset visit counters for new episode."""
+        self.visit_counts.clear()
+    
+    def get_intrinsic_reward(self, state):
+        """Calculate intrinsic reward: 1/sqrt(n(s))"""
+        self.visit_counts[state] += 1
+        return self.scale / math.sqrt(self.visit_counts[state])
+
+    def update_intrinsic(self, state, action, env_reward, next_state, next_action, done):
+        """SARSA update with combined reward."""
+        intrinsic = self.get_intrinsic_reward(next_state)
+        total_reward = env_reward + intrinsic
+        self.update_normal(state, action, total_reward, next_state, next_action, done)
+        return intrinsic
+    

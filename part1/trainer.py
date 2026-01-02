@@ -4,11 +4,10 @@ Training loop for Q-Learning and SARSA.
 from gridworld import Gridworld
 from q_learning import QLearning
 from sarsa import SARSA
-from intrinsic_reward import IntrinsicRewardWrapper
-from visualization import TrainingStats
 from config import TRAINING, MAX_STEPS_PER_EPISODE
 import pygame
 import os
+from visualization import TrainingStats
 
 
 class Trainer:
@@ -25,12 +24,9 @@ class Trainer:
     def create_agent(self, episodes):
         """Create the appropriate agent based on algorithm choice."""
         if self.algorithm == 'q_learning':
-            base_agent = QLearning(episodes=episodes)
+            base_agent = QLearning(episodes=episodes, use_intrinsic=self.use_intrinsic)
         else:
-            base_agent = SARSA(episodes=episodes)
-        
-        if self.use_intrinsic:
-            return IntrinsicRewardWrapper(base_agent)
+            base_agent = SARSA(episodes=episodes, use_intrinsic=self.use_intrinsic)
         return base_agent
     
     def train(self, episodes=None, callback=None):
@@ -45,18 +41,15 @@ class Trainer:
             total_reward = 0
             done = False
             
-            if self.algorithm == 'sarsa' and not self.use_intrinsic:
+            if self.algorithm == 'sarsa':
                 action = self.agent.select_action(state)
             
             while not done:
                 if self.algorithm == 'q_learning':
                     action = self.agent.select_action(state)
                     next_state, reward, done = env.step(action)
+                    self.agent.update(state, action, reward, next_state, done)
                     
-                    if self.use_intrinsic:
-                        self.agent.update_q_learning(state, action, reward, next_state, done)
-                    else:
-                        self.agent.update(state, action, reward, next_state, done)
                         
                 elif self.algorithm == 'sarsa':
                     next_state, reward, done = env.step(action)
@@ -139,7 +132,7 @@ class Trainer:
             total_reward = 0
             done = False
             
-            if self.algorithm == 'sarsa' and not self.use_intrinsic:
+            if self.algorithm == 'sarsa':
                 action = self.agent.select_action(state)
             
             while not done and running:
@@ -162,16 +155,12 @@ class Trainer:
                     env.clock.tick(30)
                     continue
                 
-                # Execute step
-                if self.algorithm == 'q_learning' or self.use_intrinsic:
+                # Execute step (consistent with train() method)
+                if self.algorithm == 'q_learning':
                     action = self.agent.select_action(state)
                     next_state, reward, done = env.step(action)
-                    
-                    if self.use_intrinsic:
-                        self.agent.update_q_learning(state, action, reward, next_state, done)
-                    else:
-                        self.agent.update(state, action, reward, next_state, done)
-                else:
+                    self.agent.update(state, action, reward, next_state, done)
+                else:  # sarsa
                     next_state, reward, done = env.step(action)
                     next_action = self.agent.select_action(next_state)
                     self.agent.update(state, action, reward, next_state, next_action, done)
@@ -181,9 +170,7 @@ class Trainer:
                 state = next_state
                 
                 # Render with info
-                epsilon = getattr(self.agent, 'epsilon', 0)
-                if hasattr(self.agent, 'base_agent'):
-                    epsilon = self.agent.base_agent.epsilon
+                epsilon = self.agent.epsilon
                 info = f"Ep: {episode+1}/{episodes} | Reward: {total_reward:.0f} | ε: {epsilon:.2f} | Speed: {speed} (↑/↓)"
                 env.render(info)
                 env.clock.tick(speed)
