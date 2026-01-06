@@ -4,7 +4,7 @@ Main entry point with Pygame-based menu.
 import pygame
 import sys
 from levels import get_all_levels, get_level, save_custom_level
-from trainer import Trainer, train_and_compare
+from trainer import Trainer, train_and_compare, train_and_compare_all_levels
 from gridworld import Gridworld
 from config import COLORS, TRAINING, GRID_WIDTH, GRID_HEIGHT
 from creator import LevelCreator
@@ -31,6 +31,7 @@ class Menu:
         self.use_intrinsic = False
         self.level_scroll_offset = 0
         self.max_visible_levels = 6  # Max levels visible at once
+        self.last_scroll_time = 0  # Track scroll to prevent click on scroll
     
     def draw_button(self, text, x, y, width, height, selected=False):
         """Draw a menu button."""
@@ -96,7 +97,7 @@ class Menu:
             for slot_idx, item in enumerate(visible_items):
                 item_y = scroll_area_y + slot_idx * 38
                 if item[0] == 'header':
-                    header_text = self.font_small.render(f"── {item[1]} ──", True, COLORS['agent'])
+                    header_text = self.font_small.render(f"{item[1]}", True, COLORS['agent'])
                     self.screen.blit(header_text, (50, item_y + 10))
                 else:
                     _, idx, level = item
@@ -104,13 +105,13 @@ class Menu:
                     btn = self.draw_button(btn_text, 50, item_y, 500, 34, idx == self.selected_level)
                     level_buttons.append((btn, idx))
             
-            # Draw scroll indicators if needed
+            # Draw scroll indicators if needed (using ASCII arrows for compatibility)
             if self.level_scroll_offset > 0:
-                up_arrow = self.font_medium.render("▲", True, COLORS['text'])
-                self.screen.blit(up_arrow, (530, scroll_area_y - 3))
+                up_arrow = self.font_small.render("^ more", True, COLORS['agent'])
+                self.screen.blit(up_arrow, (480, scroll_area_y - 3))
             if self.level_scroll_offset < max_scroll:
-                down_arrow = self.font_medium.render("▼", True, COLORS['text'])
-                self.screen.blit(down_arrow, (530, scroll_area_y + scroll_area_height - 25))
+                down_arrow = self.font_small.render("v more", True, COLORS['agent'])
+                self.screen.blit(down_arrow, (480, scroll_area_y + scroll_area_height - 18))
             
             # Algorithm selection - fixed position
             algo_y = scroll_area_y + scroll_area_height + 20
@@ -127,20 +128,30 @@ class Menu:
             intrinsic_text = f"Intrinsic Reward: {'ON' if self.use_intrinsic else 'OFF'}"
             intrinsic_btn = self.draw_button(intrinsic_text, 50, intrinsic_y, 500, 40, self.use_intrinsic)
             
-            # Action buttons - Row 1
-            action_y = intrinsic_y + 55
-            play_btn = self.draw_button("Play", 50, action_y, 120, 50)
-            train_btn = self.draw_button("Train", 180, action_y, 120, 50)
-            demo_btn = self.draw_button("Demo", 310, action_y, 120, 50)
-            compare_btn = self.draw_button("Compare", 440, action_y, 120, 50)
+            # Action buttons - Row 1: Single Level Actions
+            action_y = intrinsic_y + 70
+            section_label1 = self.font_small.render("Single Level:", True, COLORS['agent'])
+            self.screen.blit(section_label1, (50, action_y - 25))
             
-            # Action buttons - Row 2
-            action_y2 = action_y + 60
-            visual_train_btn = self.draw_button("Visualize Training", 50, action_y2, 340, 50)
-            create_level_btn = self.draw_button("Create Level", 400, action_y2, 160, 50)
+            play_btn = self.draw_button("Play", 50, action_y, 120, 45)
+            train_btn = self.draw_button("Train", 180, action_y, 120, 45)
+            demo_btn = self.draw_button("Demo", 310, action_y, 120, 45)
+            compare_btn = self.draw_button("Compare", 440, action_y, 120, 45)
+            
+            # Action buttons - Row 2: Visual & Create
+            action_y2 = action_y + 55
+            visual_train_btn = self.draw_button("Visual Train", 50, action_y2, 160, 45)
+            create_level_btn = self.draw_button("Create Level", 220, action_y2, 160, 45)
+            
+            # Action buttons - Row 3: All Levels Operations
+            action_y3 = action_y2 + 70
+            section_label2 = self.font_small.render("All Levels:", True, COLORS['agent'])
+            self.screen.blit(section_label2, (50, action_y3 - 25))
+            
+            compare_all_btn = self.draw_button("Compare All Levels", 50, action_y3, 240, 45)
             
             # Info text
-            info_y = action_y2 + 70
+            info_y = action_y3 + 55
             level = self.levels[self.selected_level]
             info_text = f"Level {level.level_id}: {level.description}"
             info_surface = self.font_small.render(info_text, True, COLORS['text'])
@@ -160,10 +171,16 @@ class Menu:
                     if event.key == pygame.K_ESCAPE:
                         running = False
                 elif event.type == pygame.MOUSEWHEEL:
-                    # Scroll level list
+                    # Scroll level list and track scroll time to prevent accidental clicks
                     self.level_scroll_offset -= event.y
                     self.level_scroll_offset = max(0, min(self.level_scroll_offset, max_scroll))
-                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    self.last_scroll_time = pygame.time.get_ticks()
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # Only handle left click, and ignore if recently scrolled
+                    current_time = pygame.time.get_ticks()
+                    if current_time - self.last_scroll_time < 150:  # 150ms debounce
+                        continue
+                    
                     pos = pygame.mouse.get_pos()
                     
                     for btn, idx in level_buttons:
@@ -194,6 +211,9 @@ class Menu:
                     
                     if create_level_btn.collidepoint(pos):
                         self.run_create_level()
+                    
+                    if compare_all_btn.collidepoint(pos):
+                        self.run_compare_all_levels()
             
             self.clock.tick(30)
         
@@ -351,6 +371,20 @@ class Menu:
                     self.selected_level = i
                     break
             print(f"Custom level created and added to menu!")
+        
+        # Recreate menu display
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption("RL Gridworld - Classical Learning")
+        self.font_large = pygame.font.Font(None, 48)
+        self.font_medium = pygame.font.Font(None, 32)
+        self.font_small = pygame.font.Font(None, 24)
+    
+    def run_compare_all_levels(self):
+        """Train Q-Learning and SARSA on all default levels and compare."""
+        print("\nStarting comparison on ALL default levels...")
+        print("This may take a while. Training both algorithms on 7 levels.\n")
+        
+        results = train_and_compare_all_levels(TRAINING['episodes'])
         
         # Recreate menu display
         self.screen = pygame.display.set_mode((self.width, self.height))

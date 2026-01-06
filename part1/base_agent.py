@@ -11,12 +11,12 @@ from config import TRAINING, NUM_ACTIONS, INTRINSIC_SCALE
 class BaseAgent:
     """Base class for RL agents with epsilon-greedy exploration."""
     
-    def __init__(self, alpha=None, gamma=None, epsilon_start=None, epsilon_end=None, episodes=None, use_intrinsic=False, scale=INTRINSIC_SCALE):
-        self.alpha = alpha or TRAINING['alpha']
-        self.gamma = gamma or TRAINING['gamma']
-        self.epsilon_start = epsilon_start or TRAINING['epsilon_start']
-        self.epsilon_end = epsilon_end or TRAINING['epsilon_end']
-        self.total_episodes = episodes or TRAINING['episodes']
+    def __init__(self, alpha=TRAINING['alpha'], gamma=TRAINING['gamma'], epsilon_start=TRAINING['epsilon_start'], epsilon_end=TRAINING['epsilon_end'], episodes=TRAINING['episodes'], use_intrinsic=False, scale=INTRINSIC_SCALE):
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon_start = epsilon_start
+        self.epsilon_end = epsilon_end
+        self.total_episodes = episodes
         
         self.q_table = defaultdict(lambda: [0.0] * NUM_ACTIONS)
         self.current_episode = 0

@@ -46,11 +46,11 @@ TRAINING = {
 # GAME MECHANICS
 # =============================================================================
 REWARDS = {
-    'apple': 10,
-    'chest': 20,
-    'key': 50,
-    'step': -1,
-    'death': -100,
+    'apple': 1,
+    'chest': 2,
+    'key': 0.1,
+    'step': -0.1,
+    'death': -10,
 }
 
 MONSTER_MOVE_PROBABILITY = 0.4
