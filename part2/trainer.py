@@ -157,6 +157,8 @@ class Trainer:
 
         env = self.create_env(render=True)
 
+        self.model.set_env(env)
+
         for ep in range(episodes):
             obs = env.reset()
             done = False

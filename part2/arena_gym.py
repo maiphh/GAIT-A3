@@ -73,7 +73,7 @@ class ArenaEnv(gym.Env):
     def close(self):
         """Clean up resources."""
         if self.arena is not None:
-            self.arena.close(quit_pygame=True)
+            self.arena.close(quit_pygame=False)
             self.arena = None
 
 
