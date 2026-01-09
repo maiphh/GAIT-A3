@@ -149,5 +149,5 @@ NUM_ACTIONS_DIRECTIONAL = 6
 # =============================================================================
 # OBSERVATION SPACE
 # =============================================================================
-OBSERVATION_SIZE = 22
+OBSERVATION_SIZE = 23
 DIAGONAL = math.sqrt(WINDOW_WIDTH**2 + WINDOW_HEIGHT**2)

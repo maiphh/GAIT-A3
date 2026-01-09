@@ -208,7 +208,7 @@ class Arena:
         return reward
 
     def _get_observation(self):
-        """Build fixed-size observation vector (22 features)."""
+        """Build fixed-size observation vector (23 features)."""
         obs = []
 
         # Player position (normalized to [0, 1])
@@ -237,7 +237,7 @@ class Arena:
         else:
             obs.extend([1.0, 0.0, 0.0, 0.0])  # No enemy
 
-        # Nearest spawner: distance and direction
+        # Nearest spawner: distance, direction, and facing angle
         active_spawners = [s for s in self.spawners if s.active]
         nearest_spawner = self._find_nearest(active_spawners)
         if nearest_spawner:
@@ -246,8 +246,11 @@ class Arena:
             obs.append(dist)
             obs.append(math.cos(angle))
             obs.append(math.sin(angle))
+            # Facing angle: how aligned is player's facing direction with spawner
+            relative_angle = angle - math.radians(self.player.angle)
+            obs.append(math.cos(relative_angle))  # 1.0 = facing spawner, -1.0 = facing away
         else:
-            obs.extend([1.0, 0.0, 0.0])  # No spawner
+            obs.extend([1.0, 0.0, 0.0, 0.0])
 
         # Player health (normalized to [0, 1])
         obs.append(self.player.health / PLAYER['max_health'])
