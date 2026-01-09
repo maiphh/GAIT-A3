@@ -188,31 +188,106 @@ class Trainer:
 
 
 def train_and_compare(level, episodes=500, save_dir="part1/results"):
-    """Train both Q-Learning and SARSA, then compare results."""
+    """Train Q-Learning and SARSA with and without intrinsic rewards, then compare results."""
 
     print(f"\n{'='*50}")
     print(f"Training on Level {level.level_id}: {level.name}")
+    print(f"Comparing 4 variants: Q-Learning, Q-Learning+Intrinsic, SARSA, SARSA+Intrinsic")
     print(f"{'='*50}")
     
     print("\nTraining Q-Learning...")
-    q_trainer = Trainer(level, algorithm='q_learning')
+    q_trainer = Trainer(level, algorithm='q_learning', use_intrinsic=False)
     q_stats = q_trainer.train(episodes)
     
+    print("\nTraining Q-Learning + Intrinsic...")
+    q_intrinsic_trainer = Trainer(level, algorithm='q_learning', use_intrinsic=True)
+    q_intrinsic_stats = q_intrinsic_trainer.train(episodes)
+    
     print("\nTraining SARSA...")
-    s_trainer = Trainer(level, algorithm='sarsa')
+    s_trainer = Trainer(level, algorithm='sarsa', use_intrinsic=False)
     s_stats = s_trainer.train(episodes)
+    
+    print("\nTraining SARSA + Intrinsic...")
+    s_intrinsic_trainer = Trainer(level, algorithm='sarsa', use_intrinsic=True)
+    s_intrinsic_stats = s_intrinsic_trainer.train(episodes)
     
     from visualization import compare_training_curves
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"level_{level.level_id}_comparison.png")
     compare_training_curves(
-        [q_stats, s_stats],
-        ['Q-Learning', 'SARSA'],
+        [q_stats, q_intrinsic_stats, s_stats, s_intrinsic_stats],
+        ['Q-Learning', 'Q-Learning + Intrinsic', 'SARSA', 'SARSA + Intrinsic'],
         title=f"Level {level.level_id}: {level.name}",
         save_path=save_path
     )
     
-    return q_trainer, s_trainer
+    return q_trainer, s_trainer, q_intrinsic_trainer, s_intrinsic_trainer
+
+def train_and_compare_all_levels(episodes=500, save_dir="part1/results"):
+    """Train Q-Learning and SARSA (with and without intrinsic rewards) on all default levels.
+    
+    Args:
+        episodes: Number of training episodes per level
+        save_dir: Directory to save the comparison plot
+    """
+    from levels import get_all_levels
+    from visualization import compare_all_levels_training
+    
+    # Get only default levels (level_id 0-6)
+    all_levels = get_all_levels()
+    default_levels = [level for level in all_levels if level.level_type == "default"]
+    
+    print(f"\n{'='*60}")
+    print(f"Training on {len(default_levels)} default levels")
+    print(f"4 variants per level: Q-Learning, Q+Intrinsic, SARSA, SARSA+Intrinsic")
+    print(f"Episodes per level: {episodes}")
+    print(f"{'='*60}")
+    
+    results = []
+    
+    for level in default_levels:
+        print(f"\n{'='*50}")
+        print(f"Level {level.level_id}: {level.name}")
+        print(f"{'='*50}")
+        
+        # Train Q-Learning
+        print("Training Q-Learning...")
+        q_trainer = Trainer(level, algorithm='q_learning', use_intrinsic=False)
+        q_stats = q_trainer.train(episodes)
+        
+        # Train Q-Learning + Intrinsic
+        print("Training Q-Learning + Intrinsic...")
+        q_intrinsic_trainer = Trainer(level, algorithm='q_learning', use_intrinsic=True)
+        q_intrinsic_stats = q_intrinsic_trainer.train(episodes)
+        
+        # Train SARSA
+        print("Training SARSA...")
+        s_trainer = Trainer(level, algorithm='sarsa', use_intrinsic=False)
+        s_stats = s_trainer.train(episodes)
+        
+        # Train SARSA + Intrinsic
+        print("Training SARSA + Intrinsic...")
+        s_intrinsic_trainer = Trainer(level, algorithm='sarsa', use_intrinsic=True)
+        s_intrinsic_stats = s_intrinsic_trainer.train(episodes)
+        
+        results.append({
+            'level': level,
+            'q_stats': q_stats,
+            'q_intrinsic_stats': q_intrinsic_stats,
+            's_stats': s_stats,
+            's_intrinsic_stats': s_intrinsic_stats
+        })
+    
+    # Generate combined plot
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, "all_levels_comparison.png")
+    compare_all_levels_training(results, save_path=save_path)
+    
+    print(f"\n{'='*60}")
+    print(f"Training complete! Plot saved to: {save_path}")
+    print(f"{'='*60}")
+    
+    return results
 
 def check_success(env) -> bool:
     return len(env.apples) == 0 and len(env.chests) == 0
