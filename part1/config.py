@@ -35,7 +35,7 @@ COLORS = {
 # TRAINING PARAMETERS
 # =============================================================================
 TRAINING = {
-    'episodes': 500,
+    'episodes': 5000,
     'alpha': 0.1,           # Learning rate
     'gamma': 0.99,          # Discount factor
     'epsilon_start': 1.0,   # Initial exploration rate

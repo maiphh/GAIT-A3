@@ -223,3 +223,82 @@ def compare_all_levels_training(results, save_path=None):
     
     plt.show()
     return fig
+
+
+def compare_all_levels_success_rate(results, save_path=None):
+    """Create a single figure with subplots comparing success rates for all levels.
+    
+    Args:
+        results: List of dicts with 'level', 'q_stats', 'q_intrinsic_stats', 's_stats', 's_intrinsic_stats'
+        save_path: Optional path to save the figure
+    """
+    n_levels = len(results)
+    
+    # Calculate grid dimensions (prefer more columns than rows for wider display)
+    n_cols = min(4, n_levels)
+    n_rows = (n_levels + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+    fig.suptitle("Success Rate Comparison: All Default Levels", fontsize=14, fontweight='bold')
+    
+    # Flatten axes for easier iteration (handle case of single row/column)
+    if n_levels == 1:
+        axes = np.array([axes])
+    axes = axes.flatten() if hasattr(axes, 'flatten') else [axes]
+    
+    # Colors and line styles for 4 variants
+    variants = [
+        ('q_stats', 'Q-Learning', '#3498db', '-'),           # Blue solid
+        ('q_intrinsic_stats', 'Q + Intrinsic', '#2ecc71', '--'),  # Green dashed
+        ('s_stats', 'SARSA', '#e74c3c', '-'),                # Red solid
+        ('s_intrinsic_stats', 'SARSA + Intrinsic', '#9b59b6', '--')  # Purple dashed
+    ]
+    
+    for idx, result in enumerate(results):
+        ax = axes[idx]
+        level = result['level']
+        
+        # Plot success rate for all 4 variants
+        for key, label, color, linestyle in variants:
+            stats = result.get(key)
+            if stats and len(stats.episode_success) > 10:
+                # Convert success to percentage and compute moving average
+                success_pct = [s * 100 for s in stats.episode_success]
+                ma = stats.get_moving_average(success_pct)
+                ax.plot(range(len(ma)), ma, color=color, linewidth=1.5, 
+                       label=label, linestyle=linestyle, alpha=0.9)
+        
+        ax.set_xlabel('Episode', fontsize=9)
+        ax.set_ylabel('Success Rate (%)', fontsize=9)
+        ax.set_title(f"Level {level.level_id}: {level.name}", fontsize=10, fontweight='bold')
+        ax.legend(fontsize=7, loc='lower right')
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, 105)  # 0-100% with a little margin
+        
+        # Add final success rate annotation
+        annotations = []
+        for key, label, color, _ in variants:
+            stats = result.get(key)
+            if stats:
+                success = np.mean(stats.episode_success[-100:]) * 100 if len(stats.episode_success) >= 100 else np.mean(stats.episode_success) * 100
+                short_label = label.replace('-Learning', '').replace(' + Intrinsic', '+I').replace('SARSA', 'S')
+                annotations.append(f'{short_label}: {success:.0f}%')
+        
+        ax.annotate(' | '.join(annotations), 
+                   xy=(0.02, 0.98), xycoords='axes fraction',
+                   fontsize=6, verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    # Hide unused subplots
+    for idx in range(n_levels, len(axes)):
+        axes[idx].set_visible(False)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved success rate comparison to {save_path}")
+    
+    plt.show()
+    return fig

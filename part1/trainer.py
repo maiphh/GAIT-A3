@@ -228,10 +228,10 @@ def train_and_compare_all_levels(episodes=500, save_dir="part1/results"):
     
     Args:
         episodes: Number of training episodes per level
-        save_dir: Directory to save the comparison plot
+        save_dir: Directory to save the comparison plots
     """
     from levels import get_all_levels
-    from visualization import compare_all_levels_training
+    from visualization import compare_all_levels_training, compare_all_levels_success_rate
     
     # Get only default levels (level_id 0-6)
     all_levels = get_all_levels()
@@ -278,13 +278,21 @@ def train_and_compare_all_levels(episodes=500, save_dir="part1/results"):
             's_intrinsic_stats': s_intrinsic_stats
         })
     
-    # Generate combined plot
+    # Generate combined plots
     os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, "all_levels_comparison.png")
-    compare_all_levels_training(results, save_path=save_path)
+    
+    # Reward comparison plot
+    reward_save_path = os.path.join(save_dir, "all_levels_comparison.png")
+    compare_all_levels_training(results, save_path=reward_save_path)
+    
+    # Success rate comparison plot
+    success_save_path = os.path.join(save_dir, "all_levels_success_rate.png")
+    compare_all_levels_success_rate(results, save_path=success_save_path)
     
     print(f"\n{'='*60}")
-    print(f"Training complete! Plot saved to: {save_path}")
+    print(f"Training complete!")
+    print(f"Reward plot saved to: {reward_save_path}")
+    print(f"Success rate plot saved to: {success_save_path}")
     print(f"{'='*60}")
     
     return results
