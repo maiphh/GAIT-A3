@@ -1,0 +1,25 @@
+{
+  "levels": [
+    {
+      "id": 1,
+      "name": "My Level",
+      "layout": "..........\n..........\n..........\n..........\n......A...\n..........\n.....P....\n..........\n..........\n..........",
+      "description": "Custom level",
+      "level_type": "custom"
+    },
+    {
+      "id": 2,
+      "name": "My Level",
+      "layout": "..........\n..........\n..........\n..........\n......A...\n..........\n......P...\n..........\n..........\n..........",
+      "description": "Custom level",
+      "level_type": "custom"
+    },
+    {
+      "id": 3,
+      "name": "My Leveldsad",
+      "layout": "..........\n..........\n......A...\n..........\n.A..A.....\n..........\n......P...\n..........\n..........\n..........",
+      "description": "Custom level",
+      "level_type": "custom"
+    }
+  ]
+}
