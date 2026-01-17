@@ -1,10 +1,8 @@
 """
-Part 3 Curriculum Experiment Trainer.
+Curriculum experiment trainer.
 Runs control vs curriculum for both control schemes.
 """
-import sys
 import os
-
 import pygame
 import gymnasium as gym
 from gymnasium import spaces
@@ -36,10 +34,7 @@ class CurriculumEnv(gym.Env):
         else:
             self.action_space = spaces.Discrete(NUM_ACTIONS_DIRECTIONAL)
 
-        if isinstance(OBSERVATION_SIZE, dict):
-            obs_size = OBSERVATION_SIZE.get(control_scheme, 24)
-        else:
-            obs_size = OBSERVATION_SIZE
+        obs_size = OBSERVATION_SIZE if isinstance(OBSERVATION_SIZE, int) else OBSERVATION_SIZE.get(control_scheme, 23)
         self.observation_space = spaces.Box(-1.0, 1.0, (obs_size,), np.float32)
         self.arena = None
 
@@ -97,7 +92,7 @@ class ProgressCallback(BaseCallback):
 
 
 class VisualTrainingCallback(BaseCallback):
-    """Callback for visual training with speed control, pause, and stop."""
+    """Visual training with speed control."""
 
     def __init__(self, env, initial_speed=30, model_dir='models', model_name='ppo'):
         super().__init__()
@@ -114,11 +109,10 @@ class VisualTrainingCallback(BaseCallback):
         self.best_reward = float('-inf')
         self.recent_rewards = []
         self.reposition_count = 0
-
         self.clock = pygame.time.Clock()
 
     def _on_step(self):
-        # Handle pygame events
+        # events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.stopped_early = True
@@ -134,7 +128,7 @@ class VisualTrainingCallback(BaseCallback):
                 elif event.key == pygame.K_SPACE:
                     self.paused = not self.paused
 
-        # Handle pause
+        # pause
         while self.paused:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -148,117 +142,40 @@ class VisualTrainingCallback(BaseCallback):
                         self.paused = False
 
             total = self.locals.get('total_timesteps', 0)
-            info_text = f"Ep {self.episode+1} | Step: {self.n_calls:,}/{total:,} | [PAUSED - SPACE to resume]"
-            self.env.arena.render(info_text)
+            info = f"Ep {self.episode+1} | Step: {self.n_calls:,}/{total:,} | [PAUSED]"
+            self.env.arena.render(info)
             self.clock.tick(30)
 
-        # Track episode info
+        # track episodes
         if len(self.model.ep_info_buffer) > 0:
-            current_count = len(self.model.ep_info_buffer)
-            if current_count > len(self.recent_rewards):
-                ep_reward = self.model.ep_info_buffer[-1]['r']
-                self.recent_rewards.append(ep_reward)
-                self.episode = current_count
+            count = len(self.model.ep_info_buffer)
+            if count > len(self.recent_rewards):
+                ep_r = self.model.ep_info_buffer[-1]['r']
+                self.recent_rewards.append(ep_r)
+                self.episode = count
 
-                if ep_reward > self.best_reward:
-                    self.best_reward = ep_reward
+                if ep_r > self.best_reward:
+                    self.best_reward = ep_r
                     self.model.save(os.path.join(self.model_dir, f'{self.model_name}_best'))
 
-                print(f"Episode {self.episode}: Reward={ep_reward:.0f}", flush=True)
+                print(f"Episode {self.episode}: Reward={ep_r:.0f}", flush=True)
 
-        # Track repositioning
+        # track repositioning
         if hasattr(self.env.arena, 'reposition_count'):
             self.reposition_count = self.env.arena.reposition_count
 
-        # Render
+        # render
         total = self.locals.get('total_timesteps', 0)
-        progress_pct = (self.n_calls / total * 100) if total > 0 else 0
-        mean_reward = sum(self.recent_rewards[-50:]) / len(self.recent_rewards[-50:]) if self.recent_rewards else 0
+        pct = (self.n_calls / total * 100) if total > 0 else 0
+        mean_r = sum(self.recent_rewards[-50:]) / len(self.recent_rewards[-50:]) if self.recent_rewards else 0
 
-        curriculum_info = f" | Repos: {self.reposition_count}" if self.reposition_count > 0 else ""
-        info_text = (f"Ep {self.episode+1} | "
-                    f"Step: {self.n_calls:,}/{total:,} ({progress_pct:.1f}%) | "
-                    f"Avg: {mean_reward:.0f} | Best: {self.best_reward:.0f}{curriculum_info} | Speed: {self.speed}")
-        self.env.arena.render(info_text)
-
+        repos_info = f" | Repos: {self.reposition_count}" if self.reposition_count > 0 else ""
+        info = (f"Ep {self.episode+1} | Step: {self.n_calls:,}/{total:,} ({pct:.1f}%) | "
+                f"Avg: {mean_r:.0f} | Best: {self.best_reward:.0f}{repos_info} | Speed: {self.speed}")
+        self.env.arena.render(info)
         self.clock.tick(self.speed)
+
         return True
-
-
-def visual_train_single(control_scheme, curriculum_enabled, timesteps, initial_speed=30, log_dir='logs', model_dir='models'):
-    """Train a single model with live visualization.
-
-    Args:
-        control_scheme: 'rotation' or 'directional'
-        curriculum_enabled: Whether to enable spawner repositioning
-        timesteps: Total training timesteps
-        initial_speed: Initial FPS for visualization (1-120)
-        log_dir: Directory for logs
-        model_dir: Directory for models
-    """
-    exp_type = 'curriculum' if curriculum_enabled else 'control'
-    name = f'{control_scheme}_{exp_type}'
-
-    model_path = os.path.join(model_dir, f'ppo_{name}')
-    os.makedirs(model_path, exist_ok=True)
-
-    print(f"\n{'='*60}")
-    print(f"VISUAL Training: {control_scheme.upper()} - {exp_type.upper()}")
-    print(f"Entropy coef: {ENTROPY_COEF}")
-    print(f"Curriculum: {curriculum_enabled}")
-    if curriculum_enabled:
-        cfg = CURRICULUM['spawner_reposition']
-        print(f"  Interval: {cfg['interval']} steps, Probability: {cfg['probability']*100:.0f}%")
-    print(f"Controls: UP/DOWN=Speed, SPACE=Pause, ESC=Stop")
-    print(f"{'='*60}")
-
-    # Create environment with rendering
-    env = CurriculumEnv(control_scheme, render_mode='human', curriculum_enabled=curriculum_enabled)
-
-    model = PPO(
-        'MlpPolicy', env,
-        learning_rate=TRAINING['learning_rate'],
-        n_steps=TRAINING['n_steps'],
-        batch_size=TRAINING['batch_size'],
-        n_epochs=TRAINING['n_epochs'],
-        gamma=TRAINING['gamma'],
-        gae_lambda=TRAINING['gae_lambda'],
-        clip_range=TRAINING['clip_range'],
-        ent_coef=ENTROPY_COEF,
-        vf_coef=TRAINING['vf_coef'],
-        max_grad_norm=TRAINING['max_grad_norm'],
-        policy_kwargs={'net_arch': dict(pi=TRAINING['policy_network'], vf=TRAINING['policy_network'])},
-        verbose=0
-    )
-
-    visual_callback = VisualTrainingCallback(
-        env=env,
-        initial_speed=initial_speed,
-        model_dir=model_path,
-        model_name=f'ppo_{name}'
-    )
-
-    try:
-        model.learn(
-            total_timesteps=timesteps,
-            callback=visual_callback,
-            progress_bar=False
-        )
-    except KeyboardInterrupt:
-        print("\nTraining interrupted.")
-
-    final = os.path.join(model_path, f'ppo_{name}_final')
-    model.save(final)
-    env.close()
-
-    print(f"\n{'='*50}")
-    print(f"Visual training {'stopped early' if visual_callback.stopped_early else 'complete'}!")
-    print(f"Episodes: {visual_callback.episode}, Timesteps: {visual_callback.n_calls:,}")
-    print(f"Best reward: {visual_callback.best_reward:.0f}")
-    print(f"Model saved to: {final}")
-    print(f"{'='*50}")
-
-    return model
 
 
 def train_single(control_scheme, curriculum_enabled, timesteps, log_dir='logs', model_dir='models'):
@@ -273,7 +190,7 @@ def train_single(control_scheme, curriculum_enabled, timesteps, log_dir='logs', 
 
     print(f"\n{'='*60}")
     print(f"Training: {control_scheme.upper()} - {exp_type.upper()}")
-    print(f"Entropy coef: {ENTROPY_COEF}")
+    print(f"Entropy: {ENTROPY_COEF}")
     print(f"Curriculum: {curriculum_enabled}")
     if curriculum_enabled:
         cfg = CURRICULUM['spawner_reposition']
@@ -318,10 +235,70 @@ def train_single(control_scheme, curriculum_enabled, timesteps, log_dir='logs', 
     return model
 
 
+def visual_train_single(control_scheme, curriculum_enabled, timesteps, initial_speed=30, log_dir='logs', model_dir='models'):
+    """Train with live visualization."""
+    exp_type = 'curriculum' if curriculum_enabled else 'control'
+    name = f'{control_scheme}_{exp_type}'
+
+    model_path = os.path.join(model_dir, f'ppo_{name}')
+    os.makedirs(model_path, exist_ok=True)
+
+    print(f"\n{'='*60}")
+    print(f"VISUAL Training: {control_scheme.upper()} - {exp_type.upper()}")
+    print(f"Entropy: {ENTROPY_COEF}")
+    print(f"Curriculum: {curriculum_enabled}")
+    if curriculum_enabled:
+        cfg = CURRICULUM['spawner_reposition']
+        print(f"  Interval: {cfg['interval']} steps, Probability: {cfg['probability']*100:.0f}%")
+    print(f"Controls: UP/DOWN=Speed, SPACE=Pause, ESC=Stop")
+    print(f"{'='*60}")
+
+    env = CurriculumEnv(control_scheme, render_mode='human', curriculum_enabled=curriculum_enabled)
+
+    model = PPO(
+        'MlpPolicy', env,
+        learning_rate=TRAINING['learning_rate'],
+        n_steps=TRAINING['n_steps'],
+        batch_size=TRAINING['batch_size'],
+        n_epochs=TRAINING['n_epochs'],
+        gamma=TRAINING['gamma'],
+        gae_lambda=TRAINING['gae_lambda'],
+        clip_range=TRAINING['clip_range'],
+        ent_coef=ENTROPY_COEF,
+        vf_coef=TRAINING['vf_coef'],
+        max_grad_norm=TRAINING['max_grad_norm'],
+        policy_kwargs={'net_arch': dict(pi=TRAINING['policy_network'], vf=TRAINING['policy_network'])},
+        verbose=0
+    )
+
+    visual_cb = VisualTrainingCallback(
+        env=env,
+        initial_speed=initial_speed,
+        model_dir=model_path,
+        model_name=f'ppo_{name}'
+    )
+
+    try:
+        model.learn(total_timesteps=timesteps, callback=visual_cb, progress_bar=False)
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
+
+    final = os.path.join(model_path, f'ppo_{name}_final')
+    model.save(final)
+    env.close()
+
+    print(f"\n{'='*50}")
+    print(f"{'Stopped early' if visual_cb.stopped_early else 'Complete'}!")
+    print(f"Episodes: {visual_cb.episode}, Steps: {visual_cb.n_calls:,}")
+    print(f"Best: {visual_cb.best_reward:.0f}")
+    print(f"Saved: {final}")
+    print(f"{'='*50}")
+
+    return model
+
+
 def run_full_experiment(timesteps=None):
-    """
-    Run full experiment: both schemes x both conditions = 4 models.
-    """
+    """Run full experiment: both schemes x both conditions = 4 models."""
     timesteps = timesteps or TRAINING['total_timesteps']
 
     print("\n" + "="*70)
@@ -334,14 +311,12 @@ def run_full_experiment(timesteps=None):
     print("  4. Directional - Curriculum")
     print("="*70)
 
-    # Rotation
     print("\n[1/4] Rotation - Control")
     train_single('rotation', False, timesteps)
 
     print("\n[2/4] Rotation - Curriculum")
     train_single('rotation', True, timesteps)
 
-    # Directional
     print("\n[3/4] Directional - Control")
     train_single('directional', False, timesteps)
 

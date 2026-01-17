@@ -1,16 +1,13 @@
 """
-Curriculum Arena - extends part2 Arena with spawner repositioning.
+Curriculum Arena - extends Arena with spawner repositioning.
 """
-import sys
-import os
 import random
 import math
-
-from arena import Arena as BaseArena
+from arena import Arena
 from config_curriculum import CURRICULUM, WINDOW_WIDTH, WINDOW_HEIGHT
 
 
-class CurriculumArena(BaseArena):
+class CurriculumArena(Arena):
     """Arena with spawner repositioning for curriculum experiment."""
 
     def __init__(self, control_scheme='rotation', render_mode=True, curriculum_enabled=False):
@@ -24,7 +21,7 @@ class CurriculumArena(BaseArena):
         return super().reset()
 
     def _reposition_spawners(self):
-        """Reposition all active spawners to new random locations."""
+        """Move all active spawners to new random locations."""
         cfg = CURRICULUM['spawner_reposition']
 
         for spawner in self.spawners:
@@ -36,19 +33,19 @@ class CurriculumArena(BaseArena):
                 x = random.randint(80, WINDOW_WIDTH - 80)
                 y = random.randint(80, WINDOW_HEIGHT - 80)
 
-                # Check distance from player
+                # check player distance
                 dx = x - self.player.x
                 dy = y - self.player.y
-                dist_to_player = math.sqrt(dx*dx + dy*dy)
+                dist_player = math.sqrt(dx*dx + dy*dy)
 
-                # Check distance from other spawners
+                # check spawner distance
                 min_dist = float('inf')
                 for s in self.spawners:
                     if s.active and s.spawner_id != spawner.spawner_id:
                         sdx, sdy = x - s.x, y - s.y
                         min_dist = min(min_dist, math.sqrt(sdx*sdx + sdy*sdy))
 
-                if dist_to_player > cfg['min_dist_from_player'] and min_dist > cfg['min_dist_from_spawners']:
+                if dist_player > cfg['min_dist_from_player'] and min_dist > cfg['min_dist_from_spawners']:
                     break
                 attempts += 1
 
@@ -59,7 +56,6 @@ class CurriculumArena(BaseArena):
 
     def step(self, action):
         """Step with optional spawner repositioning."""
-        # Check for repositioning before normal step
         if self.curriculum_enabled and not self.done:
             cfg = CURRICULUM['spawner_reposition']
             if self.steps > 0 and self.steps % cfg['interval'] == 0:

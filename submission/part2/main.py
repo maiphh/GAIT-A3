@@ -5,8 +5,6 @@ Deep RL Arena - Space Shooter
 import pygame
 import sys
 import os
-import subprocess
-import webbrowser
 import math
 from arena import Arena
 from trainer import Trainer
@@ -87,9 +85,8 @@ class Menu:
 
             # Action buttons - Row 2
             action_y2 = 365
-            load_btn = self.draw_button("Load Model", 50, action_y2, 155, 50)
-            tb_btn = self.draw_button("TensorBoard", 220, action_y2, 155, 50)
-            graphs_btn = self.draw_button("View Graphs", 390, action_y2, 155, 50)
+            load_btn = self.draw_button("Load Model", 50, action_y2, 240, 50)
+            graphs_btn = self.draw_button("View Graphs", 310, action_y2, 240, 50)
 
             # Action buttons - Row 3
             action_y3 = 430
@@ -102,7 +99,7 @@ class Menu:
                 "MODES:",
                 "  Play - Manual control      Train - PPO training (headless)",
                 "  Demo - Watch agent         Visual Train - Watch training live",
-                "  TensorBoard - Dashboard    View Graphs - Training curves",
+                "  View Graphs - Training curves from logs",
                 "",
                 "CONTROLS (Visual Train): UP/DOWN=Speed, SPACE=Pause, ESC=Stop",
                 "CONTROLS (Play): Arrow keys to move, SPACE=Shoot",
@@ -143,8 +140,6 @@ class Menu:
                         self.run_demo()
                     elif load_btn.collidepoint(pos):
                         self.run_load_model()
-                    elif tb_btn.collidepoint(pos):
-                        self.launch_tensorboard()
                     elif graphs_btn.collidepoint(pos):
                         self.show_graphs()
                     elif visual_train_btn.collidepoint(pos):
@@ -369,31 +364,13 @@ class Menu:
         pygame.init()
         self._recreate_menu()
 
-    def launch_tensorboard(self):
-        """Launch TensorBoard in browser."""
-        log_dir = 'logs'
-
-        print(f"\nLaunching TensorBoard...")
-        print(f"Log directory: {log_dir}")
-        print("Opening http://localhost:6006 in browser...")
-
-        try:
-            # Start TensorBoard server in background
-            subprocess.Popen(
-                ['tensorboard', '--logdir', log_dir, '--port', '6006'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            # Open browser
-            webbrowser.open('http://localhost:6006')
-        except FileNotFoundError:
-            print("\nError: TensorBoard not found.")
-            print("Install with: pip install tensorboard")
-
     def show_graphs(self):
         """Show training graphs using matplotlib."""
         from visualization import show_training_graphs
-        show_training_graphs()
+        # use path relative to this script, not cwd
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        log_dir = os.path.join(script_dir, 'logs')
+        show_training_graphs(log_dir)
 
     def _recreate_menu(self):
         """Recreate menu display after returning from game."""

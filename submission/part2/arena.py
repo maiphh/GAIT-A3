@@ -1,6 +1,6 @@
 """
 Arena environment with Pygame rendering.
-Core game mechanics and state management.
+Core game loop and state management.
 """
 import pygame
 import random
@@ -13,7 +13,7 @@ from entities import Player, Enemy, Spawner, Projectile
 
 
 class Arena:
-    """Main arena game environment."""
+    """Main game environment."""
 
     def __init__(self, control_scheme='rotation', render_mode=True):
         self.control_scheme = control_scheme
@@ -28,13 +28,11 @@ class Arena:
             self.font_large = pygame.font.Font(None, 36)
             self.clock = pygame.time.Clock()
 
-        # Generate static stars once
         self._generate_stars()
-
         self.reset()
 
     def _generate_stars(self):
-        """Generate static star positions."""
+        """Static star background."""
         random.seed(42)
         self.stars = []
         for _ in range(100):
@@ -45,7 +43,7 @@ class Arena:
         random.seed()
 
     def reset(self):
-        """Reset environment to initial state. Returns observation."""
+        """Reset to initial state, return observation."""
         self.player = Player()
         self.player.control_scheme = self.control_scheme
 
@@ -61,111 +59,104 @@ class Arena:
         self.enemies_destroyed = 0
         self.spawners_destroyed = 0
 
-        # Spawn initial spawners for phase 1
         self._spawn_phase_spawners()
-
-        return self._get_observation()
+        return self._get_obs()
 
     def _spawn_phase_spawners(self):
         """Spawn spawners for current phase."""
-        phase_config = PHASES.get(self.phase, PHASES[5])
-        num_spawners = phase_config['spawners']
+        cfg = PHASES.get(self.phase, PHASES[5])
+        n_spawners = cfg['spawners']
 
-        for i in range(num_spawners):
-            # Place spawners away from player and other spawners
+        for i in range(n_spawners):
             attempts = 0
             while attempts < 100:
                 x = random.randint(80, WINDOW_WIDTH - 80)
                 y = random.randint(80, WINDOW_HEIGHT - 80)
 
-                # Check distance from player
+                # distance from player
                 dx = x - self.player.x
                 dy = y - self.player.y
-                dist_to_player = math.sqrt(dx*dx + dy*dy)
+                dist_player = math.sqrt(dx*dx + dy*dy)
 
-                # Check distance from other spawners
-                min_dist_to_spawner = float('inf')
+                # distance from other spawners
+                min_dist_spawner = float('inf')
                 for s in self.spawners:
                     if s.active:
                         sdx = x - s.x
                         sdy = y - s.y
-                        dist = math.sqrt(sdx*sdx + sdy*sdy)
-                        min_dist_to_spawner = min(min_dist_to_spawner, dist)
+                        d = math.sqrt(sdx*sdx + sdy*sdy)
+                        min_dist_spawner = min(min_dist_spawner, d)
 
-                if dist_to_player > 200 and min_dist_to_spawner > 150:
+                if dist_player > 200 and min_dist_spawner > 150:
                     break
                 attempts += 1
 
             spawner = Spawner(x, y, spawner_id=len(self.spawners))
-            # Adjust spawn rate based on phase
-            spawner.spawn_interval = int(spawner.spawn_interval / phase_config['spawn_rate'])
+            spawner.spawn_interval = int(spawner.spawn_interval / cfg['spawn_rate'])
             self.spawners.append(spawner)
 
     def step(self, action):
-        """Execute action and return (observation, reward, done, info)."""
+        """Execute action, return (obs, reward, done, info)."""
         if self.done:
-            return self._get_observation(), 0, True, self._get_info()
+            return self._get_obs(), 0, True, self._get_info()
 
         self.steps += 1
         reward = REWARDS['survival_tick']
 
-        # Apply player action
+        # player action
         if self.control_scheme == 'rotation':
             shoot = self.player.apply_action_rotation(action)
         else:
             shoot = self.player.apply_action_directional(action)
 
-        # Handle shooting
+        # shooting
         if shoot:
-            projectile = self.player.shoot()
-            if projectile:
-                self.projectiles.append(projectile)
+            proj = self.player.shoot()
+            if proj:
+                self.projectiles.append(proj)
 
-        # Update player physics
         self.player.update()
 
-        # Update spawners and spawn enemies
-        phase_config = PHASES.get(self.phase, PHASES[5])
+        # spawners
+        cfg = PHASES.get(self.phase, PHASES[5])
         for spawner in self.spawners:
             if spawner.active:
-                new_enemy = spawner.update(len(self.enemies))
-                if new_enemy:
-                    # Apply phase speed modifier
-                    new_enemy.speed *= phase_config['enemy_speed']
-                    self.enemies.append(new_enemy)
+                enemy = spawner.update(len(self.enemies))
+                if enemy:
+                    enemy.speed *= cfg['enemy_speed']
+                    self.enemies.append(enemy)
 
-        # Update enemies
+        # enemies
         for enemy in self.enemies:
             if enemy.active:
                 enemy.update(self.player)
 
-        # Update projectiles
+        # projectiles
         for proj in self.projectiles:
             if proj.active:
                 proj.update()
 
-        # Check collisions
+        # collisions
         reward += self._check_collisions()
 
-        # Check phase progression (all spawners destroyed)
+        # phase progression
         active_spawners = [s for s in self.spawners if s.active]
         if len(active_spawners) == 0 and len(self.spawners) > 0:
-            # Flat phase reward: 10k per phase (Ver 8)
             reward += REWARDS['phase_progress']
             self.phase += 1
             if self.phase <= 5:
                 self._spawn_phase_spawners()
             else:
-                # Victory! All 5 phases completed - add victory bonus (100k)
+                # victory!
                 reward += REWARDS['victory_bonus']
                 self.victory = True
                 self.done = True
 
-        # Clean up inactive entities
+        # cleanup
         self.enemies = [e for e in self.enemies if e.active]
         self.projectiles = [p for p in self.projectiles if p.active]
 
-        # Check end conditions
+        # end conditions
         if not self.player.active:
             reward += REWARDS['death']
             self.done = True
@@ -173,13 +164,13 @@ class Arena:
             self.done = True
 
         self.total_reward += reward
-        return self._get_observation(), reward, self.done, self._get_info()
+        return self._get_obs(), reward, self.done, self._get_info()
 
     def _check_collisions(self):
-        """Check all collisions and return reward delta."""
+        """Handle all collisions, return reward delta."""
         reward = 0
 
-        # Player projectiles vs enemies
+        # player projectiles vs enemies
         for proj in self.projectiles:
             if proj.active and proj.owner == 'player':
                 for enemy in self.enemies:
@@ -191,7 +182,7 @@ class Arena:
                             self.enemies_destroyed += 1
                         break
 
-        # Player projectiles vs spawners
+        # player projectiles vs spawners
         for proj in self.projectiles:
             if proj.active and proj.owner == 'player':
                 for spawner in self.spawners:
@@ -203,49 +194,39 @@ class Arena:
                             self.spawners_destroyed += 1
                         break
 
-        # Enemies vs player (collision damage)
+        # enemies vs player
         if self.player.invulnerable <= 0:
             for enemy in self.enemies:
                 if enemy.active and self.player.collides_with(enemy):
-                    enemy.active = False  # Enemy dies on collision
+                    enemy.active = False
                     self.player.take_damage(ENEMY['damage'])
                     self.player.invulnerable = PLAYER['invulnerability_frames']
                     reward += REWARDS['damage_taken']
 
         return reward
 
-    def _get_observation(self):
-        """Build observation vector (Default_4k style: 23 features for both schemes).
+    def _get_obs(self):
+        """Build 23-feature observation vector.
 
-        Features:
-        1-2: Player position (x, y)
-        3-4: Player velocity (vx, vy)
-        5-6: Player orientation (cos, sin of angle)
-        7-10: Nearest enemy (distance, direction cos/sin, speed)
-        11-14: Nearest spawner (distance, direction cos/sin, facing cos)
-        15: Player health
-        16: Current phase
-        17: Enemy count
-        18: Shoot ready
-        19-22: Wall distances (left, right, top, bottom)
-        23: Active spawner count
+        Player pos/vel/angle, nearest enemy info, nearest spawner info,
+        health, phase, enemy count, shoot ready, wall distances, spawner count.
         """
         obs = []
 
-        # Player position (normalized to [0, 1])
+        # player pos (normalized 0-1)
         obs.append(self.player.x / WINDOW_WIDTH)
         obs.append(self.player.y / WINDOW_HEIGHT)
 
-        # Player velocity (normalized to [-1, 1])
+        # player velocity (normalized -1 to 1)
         obs.append(self.player.vx / PLAYER['max_velocity'])
         obs.append(self.player.vy / PLAYER['max_velocity'])
 
-        # Player orientation (sin/cos for continuity)
+        # player angle
         rad = math.radians(self.player.angle)
         obs.append(math.cos(rad))
         obs.append(math.sin(rad))
 
-        # Nearest enemy: distance, direction, and speed
+        # nearest enemy
         nearest_enemy = self._find_nearest(self.enemies)
         if nearest_enemy:
             dist = self.player.distance_to(nearest_enemy) / DIAGONAL
@@ -253,12 +234,12 @@ class Arena:
             obs.append(dist)
             obs.append(math.cos(angle))
             obs.append(math.sin(angle))
-            max_enemy_speed = ENEMY['speed'] * 1.5  # Max speed at phase 5
-            obs.append(nearest_enemy.speed / max_enemy_speed)
+            max_speed = ENEMY['speed'] * 1.5
+            obs.append(nearest_enemy.speed / max_speed)
         else:
-            obs.extend([1.0, 0.0, 0.0, 0.0])  # No enemy
+            obs.extend([1.0, 0.0, 0.0, 0.0])
 
-        # Nearest spawner: distance, direction, facing
+        # nearest spawner
         active_spawners = [s for s in self.spawners if s.active]
         nearest_spawner = self._find_nearest(active_spawners)
         if nearest_spawner:
@@ -267,49 +248,42 @@ class Arena:
             obs.append(dist)
             obs.append(math.cos(angle))
             obs.append(math.sin(angle))
-            # Facing angle: how aligned player is facing toward spawner
-            relative_angle = angle - math.radians(self.player.angle)
-            obs.append(math.cos(relative_angle))  # 1.0 = facing spawner, -1.0 = facing away
+            # facing: 1.0 = facing spawner, -1.0 = facing away
+            rel_angle = angle - math.radians(self.player.angle)
+            obs.append(math.cos(rel_angle))
         else:
-            obs.extend([1.0, 0.0, 0.0, 0.0])  # No spawner
+            obs.extend([1.0, 0.0, 0.0, 0.0])
 
-        # Player health (normalized to [0, 1])
+        # game state
         obs.append(self.player.health / PLAYER['max_health'])
-
-        # Current phase (normalized to [0, 1])
         obs.append(self.phase / 5.0)
-
-        # Enemy count (normalized, capped at 20)
         obs.append(min(len(self.enemies) / 20.0, 1.0))
-
-        # Shoot ready (binary)
         obs.append(1.0 if self.player.can_shoot() else 0.0)
 
-        # Wall distances (normalized to [0, 1])
-        obs.append(self.player.x / WINDOW_WIDTH)  # Left
-        obs.append((WINDOW_WIDTH - self.player.x) / WINDOW_WIDTH)  # Right
-        obs.append(self.player.y / WINDOW_HEIGHT)  # Top
-        obs.append((WINDOW_HEIGHT - self.player.y) / WINDOW_HEIGHT)  # Bottom
+        # wall distances
+        obs.append(self.player.x / WINDOW_WIDTH)  # left
+        obs.append((WINDOW_WIDTH - self.player.x) / WINDOW_WIDTH)  # right
+        obs.append(self.player.y / WINDOW_HEIGHT)  # top
+        obs.append((WINDOW_HEIGHT - self.player.y) / WINDOW_HEIGHT)  # bottom
 
-        # Active spawner count (normalized, max 5)
+        # spawner count
         obs.append(len(active_spawners) / 5.0)
 
         return obs
 
     def _find_nearest(self, entities):
-        """Find nearest active entity from list."""
+        """Find nearest active entity."""
         nearest = None
         min_dist = float('inf')
         for e in entities:
             if e.active:
-                dist = self.player.distance_to(e)
-                if dist < min_dist:
-                    min_dist = dist
+                d = self.player.distance_to(e)
+                if d < min_dist:
+                    min_dist = d
                     nearest = e
         return nearest
 
     def _get_info(self):
-        """Return additional info dict."""
         return {
             'phase': self.phase,
             'enemies_destroyed': self.enemies_destroyed,
@@ -320,17 +294,17 @@ class Arena:
         }
 
     def render(self, info_text=""):
-        """Render the current state using Pygame."""
+        """Render current state with Pygame."""
         if not self.render_mode:
             return
 
         self.screen.fill(COLORS['background'])
 
-        # Draw stars
+        # stars
         for x, y, brightness in self.stars:
             pygame.draw.circle(self.screen, (brightness, brightness, brightness), (x, y), 1)
 
-        # Draw entities
+        # entities
         for spawner in self.spawners:
             if spawner.active:
                 spawner.draw(self.screen)
@@ -346,59 +320,56 @@ class Arena:
         if self.player.active:
             self.player.draw(self.screen)
 
-        # Draw HUD
         self._draw_hud(info_text)
-
         pygame.display.flip()
 
     def _draw_hud(self, info_text):
         """Draw heads-up display."""
-        # Health bar
+        # health bar
         bar_x, bar_y = 10, 10
-        bar_width, bar_height = 200, 20
-        health_ratio = max(0, self.player.health / PLAYER['max_health'])
+        bar_w, bar_h = 200, 20
+        hp_ratio = max(0, self.player.health / PLAYER['max_health'])
 
         pygame.draw.rect(self.screen, COLORS['health_bar_bg'],
-                        (bar_x, bar_y, bar_width, bar_height))
+                        (bar_x, bar_y, bar_w, bar_h))
         pygame.draw.rect(self.screen, COLORS['health_bar'],
-                        (bar_x, bar_y, bar_width * health_ratio, bar_height))
+                        (bar_x, bar_y, bar_w * hp_ratio, bar_h))
         pygame.draw.rect(self.screen, COLORS['text'],
-                        (bar_x, bar_y, bar_width, bar_height), 2)
+                        (bar_x, bar_y, bar_w, bar_h), 2)
 
-        health_text = self.font.render(f"HP: {max(0, self.player.health)}", True, COLORS['text'])
-        self.screen.blit(health_text, (bar_x + 5, bar_y + 2))
+        hp_text = self.font.render(f"HP: {max(0, self.player.health)}", True, COLORS['text'])
+        self.screen.blit(hp_text, (bar_x + 5, bar_y + 2))
 
-        # Phase indicator
+        # phase
         phase_text = self.font_large.render(f"Phase {self.phase}", True, COLORS['phase_indicator'])
         self.screen.blit(phase_text, (WINDOW_WIDTH - 120, 10))
 
-        # Score/stats
-        stats_text = self.font.render(
+        # stats
+        stats = self.font.render(
             f"Enemies: {self.enemies_destroyed}  |  Spawners: {self.spawners_destroyed}  |  Score: {int(self.total_reward)}",
             True, COLORS['text']
         )
-        self.screen.blit(stats_text, (10, 40))
+        self.screen.blit(stats, (10, 40))
 
-        # Active spawners count
-        active_spawners = sum(1 for s in self.spawners if s.active)
-        spawner_text = self.font.render(
-            f"Active Spawners: {active_spawners}  |  Enemies: {len(self.enemies)}",
+        # active counts
+        active = sum(1 for s in self.spawners if s.active)
+        counts = self.font.render(
+            f"Active Spawners: {active}  |  Enemies: {len(self.enemies)}",
             True, COLORS['text']
         )
-        self.screen.blit(spawner_text, (10, 60))
+        self.screen.blit(counts, (10, 60))
 
-        # Info text at bottom
+        # info text
         if info_text:
-            info_surface = self.font.render(info_text, True, COLORS['text'])
-            self.screen.blit(info_surface, (10, WINDOW_HEIGHT - 30))
+            info = self.font.render(info_text, True, COLORS['text'])
+            self.screen.blit(info, (10, WINDOW_HEIGHT - 30))
 
     def close(self, quit_pygame=False):
-        """Clean up Pygame resources."""
         if self.render_mode and quit_pygame:
             pygame.quit()
 
     def handle_events(self):
-        """Process Pygame events, return False to quit."""
+        """Process pygame events, return False to quit."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False

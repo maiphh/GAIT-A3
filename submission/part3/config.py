@@ -1,11 +1,11 @@
 """
-Configuration file for the Deep RL Arena.
-All configurable parameters are centralized here.
+Configuration for Deep RL Arena.
+All tuneable parameters in one place.
 """
 import math
 
 # =============================================================================
-# DISPLAY SETTINGS
+# DISPLAY
 # =============================================================================
 WINDOW_WIDTH = 960
 WINDOW_HEIGHT = 680
@@ -13,7 +13,7 @@ FPS = 60
 RENDER_DURING_TRAINING = False
 
 # =============================================================================
-# COLORS (RGB) - Dark space theme
+# COLORS (RGB) - dark space theme
 # =============================================================================
 COLORS = {
     'background': (15, 15, 25),
@@ -31,7 +31,7 @@ COLORS = {
 }
 
 # =============================================================================
-# PLAYER SETTINGS
+# PLAYER
 # =============================================================================
 PLAYER = {
     'start_x': WINDOW_WIDTH // 2,
@@ -48,7 +48,7 @@ PLAYER = {
 }
 
 # =============================================================================
-# ENEMY SETTINGS
+# ENEMY
 # =============================================================================
 ENEMY = {
     'health': 10,
@@ -58,7 +58,7 @@ ENEMY = {
 }
 
 # =============================================================================
-# SPAWNER SETTINGS
+# SPAWNER
 # =============================================================================
 SPAWNER = {
     'health': 40,
@@ -68,7 +68,7 @@ SPAWNER = {
 }
 
 # =============================================================================
-# PROJECTILE SETTINGS
+# PROJECTILE
 # =============================================================================
 PROJECTILE = {
     'speed': 12.0,
@@ -78,7 +78,7 @@ PROJECTILE = {
 }
 
 # =============================================================================
-# PHASE SYSTEM
+# PHASES - difficulty progression
 # =============================================================================
 PHASES = {
     1: {'spawners': 1, 'spawn_rate': 1.0, 'enemy_speed': 1.0},
@@ -89,25 +89,25 @@ PHASES = {
 }
 
 # =============================================================================
-# REWARD STRUCTURE (Ver 8 - Flat rewards)
+# REWARDS
 # =============================================================================
 REWARDS = {
     'destroy_enemy': 10.0,
     'destroy_spawner': 80.0,
-    'phase_progress': 10000.0,       # Flat 10k per phase (NOT scaled)
-    'victory_bonus': 100000.0,       # 100k bonus for completing Phase 5
+    'phase_progress': 10000.0,   # flat 10k per phase
+    'victory_bonus': 100000.0,   # completing all 5 phases
     'damage_taken': -5.0,
     'death': -200.0,
     'survival_tick': 0.01,
-    'hit_enemy': 0.0,      # 0 because enemies die in 1 hit (10 HP, 10 damage)
+    'hit_enemy': 0.0,            # enemies die in 1 hit anyway
     'hit_spawner': 5.0,
 }
 
 # =============================================================================
-# TRAINING PARAMETERS
+# TRAINING
 # =============================================================================
 TRAINING = {
-    'total_timesteps': 4000000,  # Ver 8: 4M steps
+    'total_timesteps': 4000000,
     'learning_rate': 3e-4,
     'n_steps': 2048,
     'batch_size': 64,
@@ -120,16 +120,15 @@ TRAINING = {
     'policy_network': [64, 64],
 }
 
-# Entropy coefficient (SB3 default)
-# Default_4k achieved best results with ent_coef=0.0 for both schemes
+# entropy coef - SB3 default works best
 ENTROPY_COEF = 0.0
 
 MAX_STEPS_PER_EPISODE = 3000
 
 # =============================================================================
-# ACTION SPACES
+# ACTIONS
 # =============================================================================
-# Control Scheme 1: Rotation-based
+# Rotation-based (asteroids style)
 ACTIONS_ROTATION = {
     0: 'no_action',
     1: 'thrust',
@@ -139,7 +138,7 @@ ACTIONS_ROTATION = {
 }
 NUM_ACTIONS_ROTATION = 5
 
-# Control Scheme 2: Directional
+# Directional (twin-stick style)
 ACTIONS_DIRECTIONAL = {
     0: 'no_action',
     1: 'move_up',
@@ -151,8 +150,7 @@ ACTIONS_DIRECTIONAL = {
 NUM_ACTIONS_DIRECTIONAL = 6
 
 # =============================================================================
-# OBSERVATION SPACE
+# OBSERVATION
 # =============================================================================
-# Default_4k: 23 features for both schemes (no turn_direction)
-OBSERVATION_SIZE = 23
+OBSERVATION_SIZE = 23  # both schemes use same obs size
 DIAGONAL = math.sqrt(WINDOW_WIDTH**2 + WINDOW_HEIGHT**2)
