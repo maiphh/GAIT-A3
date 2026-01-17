@@ -4,7 +4,7 @@ Training loop for Q-Learning and SARSA.
 from gridworld import Gridworld
 from q_learning import QLearning
 from sarsa import SARSA
-from config import TRAINING, MAX_STEPS_PER_EPISODE
+from config import TRAINING, MAX_STEPS_PER_EPISODE, RESULT_DIR
 import pygame
 import os
 from visualization import TrainingStats
@@ -187,7 +187,7 @@ class Trainer:
         return self.stats
 
 
-def train_and_compare(level, episodes=500, save_dir="part1/results"):
+def train_and_compare(level, episodes=500, save_dir=RESULT_DIR):
     """Train Q-Learning and SARSA with and without intrinsic rewards, then compare results."""
 
     print(f"\n{'='*50}")
@@ -223,7 +223,7 @@ def train_and_compare(level, episodes=500, save_dir="part1/results"):
     
     return q_trainer, s_trainer, q_intrinsic_trainer, s_intrinsic_trainer
 
-def train_and_compare_all_levels(episodes=500, save_dir="part1/results"):
+def train_and_compare_all_levels(episodes=500, save_dir=RESULT_DIR):
     """Train Q-Learning and SARSA (with and without intrinsic rewards) on all default levels.
     
     Args:

@@ -6,8 +6,9 @@ import sys
 from levels import get_all_levels, get_level, save_custom_level
 from trainer import Trainer, train_and_compare, train_and_compare_all_levels
 from gridworld import Gridworld
-from config import COLORS, TRAINING, GRID_WIDTH, GRID_HEIGHT
+from config import COLORS, TRAINING, GRID_WIDTH, GRID_HEIGHT, RESULT_DIR
 from creator import LevelCreator
+
 
 
 
@@ -285,7 +286,7 @@ class Menu:
         stats = self.trainer.train(TRAINING['episodes'])
         stats.print_summary()
         
-        save_path = f"part1/results/level_{level.level_id}_{algorithm}.png"
+        save_path = f"{RESULT_DIR}/level_{level.level_id}_{algorithm}.png"
         title = f"Level {level.level_id}: {level.name} - {algorithm.upper()}"
         if self.use_intrinsic:
             title += " (Intrinsic)"
@@ -342,7 +343,7 @@ class Menu:
         if len(stats.episode_rewards) > 0:
             stats.print_summary()
             
-            save_path = f"results/level_{level.level_id}_{algorithm}_visual.png"
+            save_path = f"{RESULT_DIR}/level_{level.level_id}_{algorithm}_visual.png"
             title = f"Level {level.level_id}: {level.name} - {algorithm.upper()}"
             if self.use_intrinsic:
                 title += " (Intrinsic)"

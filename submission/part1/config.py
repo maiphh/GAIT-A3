@@ -2,7 +2,7 @@
 Configuration file for the Reinforcement Learning Gridworld.
 All configurable parameters are centralized here.
 """
-
+import os
 # =============================================================================
 # DISPLAY SETTINGS
 # =============================================================================
@@ -85,3 +85,4 @@ CELL_AGENT = 7
 # =============================================================================
 INTRINSIC_REWARD_ENABLED = False
 INTRINSIC_SCALE = 1.0  # Scaling factor for intrinsic reward
+RESULT_DIR = os.path.join(os.path.dirname(__file__), "results")
